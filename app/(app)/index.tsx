@@ -1,11 +1,11 @@
-import GroupView from "@/components/GroupView";
+import SettingsListView, { OptionGroup } from "@/components/SettingsListView";
 import TopBarView from "@/components/Topbar";
-import { useRef } from "react";
-import { FlatList, StyleSheet, View } from "react-native";
-import Animated, { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as SecureStore from "expo-secure-store";
+import { useState } from "react";
+import { Button, StyleSheet, View } from "react-native";
+import { useSharedValue } from "react-native-reanimated";
 
-const data = [
+const mockdata = [
   {
     id: 1,
     list: [
@@ -115,95 +115,45 @@ const data = [
 ];
 
 export default function Home() {
-  const scrollRef = useRef<FlatList>(null);
   const scrollY = useSharedValue(0);
-  const lastY = useSharedValue(0);
-  const insets = useSafeAreaInsets();
 
-  const dragEndedWithoutMomentum = useRef(false);
+  const [data, setData] = useState<OptionGroup[]>([]);
 
-  const handleScroll = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      lastY.value = scrollY.value;
-      scrollY.value = event.contentOffset.y;
+  const handleSaveData = async () => {
+    await SecureStore.setItemAsync("settingsOptions", JSON.stringify(mockdata), {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK
+    });
+  };
+
+  const handleLoadData = async () => {
+    const securedData = await SecureStore.getItemAsync("settingsOptions");
+    if (securedData !== null) {
+      setData(JSON.parse(securedData));
     }
-  });
-
-  const handleSnap = () => {
-    const y = scrollY.value;
-
-    if (y > 0 && y < 140)
-      if (y > lastY.value) {
-        if (y < 60) {
-          scrollRef.current?.scrollToOffset({ offset: 0, animated: true });
-        } else if (y > 60) {
-          scrollRef.current?.scrollToOffset({ offset: 140, animated: true });
-        }
-      } else if (y < lastY.value) {
-        if (y < 80) {
-          scrollRef.current?.scrollToOffset({ offset: 0, animated: true });
-        } else if (y < 140) {
-          scrollRef.current?.scrollToOffset({ offset: 140, animated: true });
-        }
-      }
-  };
-
-  const handleScrollEndDrag = () => {
-    dragEndedWithoutMomentum.current = true;
-
-    setTimeout(() => {
-      if (dragEndedWithoutMomentum.current) {
-        handleSnap();
-      }
-    }, 50);
-  };
-
-  const handleMomentumScrollBegin = () => {
-    dragEndedWithoutMomentum.current = false;
-  };
-
-  const handleMomentumScrollEnd = () => {
-    handleSnap();
   };
 
   return (
     <View style={styles.container}>
       <TopBarView scrollY={scrollY} />
-      <Animated.FlatList
-        data={data}
-        keyExtractor={(item) => item.id.toString()}
-        ref={scrollRef}
-        onScrollEndDrag={handleScrollEndDrag}
-        onMomentumScrollBegin={handleMomentumScrollBegin}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-        renderItem={({ item, index }) => {
-          const isLast = index === data.length - 1;
-          return (
-            <GroupView
-              id={String(item.id)}
-              list={item.list.map((item) => ({ ...item, id: String(item.id) }))}
-              style={isLast ? { marginBottom: 0 } : {}}
-            />
-          );
-        }}
-        onScroll={handleScroll}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        contentContainerStyle={[styles.scrollContainer, { paddingTop: insets.top + 200 }]}
-      />
+      <SettingsListView data={data} scrollY={scrollY} />
+      <View style={styles.toolButtons}>
+        <Button onPress={handleSaveData} title="Save data" />
+        <Button onPress={handleLoadData} title="Load data" />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, borderWidth: 1, backgroundColor: "#15171A" },
-  scrollContainer: {
-    paddingBottom: 50
-  },
-  item: {
-    backgroundColor: "#24282D",
-    height: 100,
+  toolButtons: {
+    position: "absolute",
+    bottom: 50,
+    left: "50%",
+    transform: [{ translateX: "-50%" }],
     justifyContent: "center",
-    paddingHorizontal: 20
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 20
   }
 });
